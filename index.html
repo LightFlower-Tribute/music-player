@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>我的私人音乐球-云端版</title>
+    <style>
+        :root { --theme-color: #ff4444; --text-color: #ffffff; }
+        body { background: #121212; margin: 0; height: 100vh; overflow: hidden; font-family: sans-serif; }
+        #music-ball {
+            position: fixed; bottom: 60px; right: 60px; display: flex; align-items: center;
+            background: var(--theme-color); backdrop-filter: blur(20px); border-radius: 60px; padding: 6px;
+            box-shadow: 0 15px 45px rgba(0,0,0,0.6); width: 54px; height: 54px; overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.2); transition: width 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 9999; cursor: pointer;
+        }
+        #music-ball.expanded { width: 320px; border-radius: 20px; }
+        .cover-wrapper { width: 54px; height: 54px; flex-shrink: 0; }
+        .cover-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; animation: rotateDisk 15s linear infinite; animation-play-state: paused; border: 2px solid rgba(255,255,255,0.3); }
+        .playing .cover-img { animation-play-state: running; }
+        .content-area { margin-left: 15px; opacity: 0; flex-grow: 1; transition: opacity 0.4s; color: var(--text-color); pointer-events: none; }
+        .expanded .content-area { opacity: 1; pointer-events: auto; }
+        .song-title { font-weight: bold; font-size: 15px; display: block; white-space: nowrap; width: 180px; overflow: hidden; text-overflow: ellipsis; }
+        .controls { display: flex; gap: 15px; align-items: center; margin-top: 8px; }
+        .btn { cursor: pointer; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 6px; font-size: 12px; border: none; color: inherit; }
+        @keyframes rotateDisk { from {transform: rotate(0deg)} to {transform: rotate(360deg)} }
+    </style>
+</head>
+<body>
+<div id="music-ball">
+    <div class="cover-wrapper" onclick="toggleExpand()">
+        <img id="js-cover" class="cover-img" src="">
+    </div>
+    <div class="content-area">
+        <span class="song-title" id="js-title">加载中...</span>
+        <div class="controls">
+            <button class="btn" id="js-play-btn" onclick="togglePlay()">▶️ 播放</button>
+            <button class="btn" onclick="changeSong(1)">下首</button>
+        </div>
+    </div>
+</div>
+<script>
+    const MY_COOKIE = "000DA7382AD7308F6CE1BBAF3EBFB61599DE6110EB25689538227AA897A2989DA405FEC61B75E1E704B6241394133F9A5371B93AF3B67634B6B5FFF144092868877DCC59DE1C0F111030E8C9571BBAEC9A934143A4C981D5BB82802F20B7FA82744DB252A959C91289CE61B1BCCD4F30AA38C83AB83BB712282AAF7A0602210DFCC398688926BD9D5E8AC0F16FA0B1F45B54B342539E216B8F033E7C345CB4C9B303BDF924FDF632D7B686CC5A7385B14F08A46F2B66152531EEA92D5B6FB46D307F9BA64C49C3BEF693C1568C07568D812DDBDE4657F46F9B052115673FC2E07B3FC2D7F2F2A9010323B31C02A87946E4595E7ACA75B894AA624DFF8BA79EC66EC938FFD42800D7BD25C4EA6F4354CABFC2D6EE448896BE0DEAF3F1F515421572F78BAE5549059E0C458D9AC867126F149615B208FE58260FF70D0725D609477E35FE01BBEE4E7B0E8EEDDA1AB22528F9704F9593034934DDB6CE9ED21700B6B6FD1EB4550F50DE83FD73E49D9A1FF9F8A578D7F2E122432253E69CFE95F3A5CA80F74A3A78D4A96DDB96EE54830E8BB6A7E53823D1B424CE2156302C1EC95B3D";
+    const API = "https://netease-cloud-music-api-backup-plum.vercel.app";
+    const MY_ID = "247961016";
+    let playlist = [], currentIndex = 0;
+    const audio = new Audio(); // 核心修复：直接使用 JS 对象
+    const ball = document.getElementById('music-ball');
+
+    async function init() {
+        try {
+            const res = await fetch(`${API}/user/playlist?uid=${MY_ID}`).then(r => r.json());
+            const trackRes = await fetch(`${API}/playlist/track/all?id=${res.playlist[0].id}&limit=20`).then(r => r.json());
+            playlist = trackRes.songs;
+            if(playlist.length > 0) loadSong(0);
+        } catch (e) { document.getElementById('js-title').innerText = "服务唤醒中..."; }
+    }
+
+    async function loadSong(index) {
+        const song = playlist[index];
+        document.getElementById('js-title').innerText = song.name;
+        document.getElementById('js-cover').src = song.al.picUrl + "?param=200y200";
+        try {
+            const urlData = await fetch(`${API}/song/url/v1?id=${song.id}&level=standard&cookie=${MY_COOKIE}`).then(r => r.json());
+            if (urlData.data[0].url) {
+                audio.src = urlData.data[0].url.replace("http://", "https://");
+            }
+        } catch (err) { console.log("获取失败"); }
+    }
+
+    function togglePlay() {
+        if (!audio.src) return;
+        if (audio.paused) {
+            audio.play().then(() => {
+                ball.classList.add('playing');
+                document.getElementById('js-play-btn').innerText = "⏸ 暂停";
+            }).catch(() => alert("请先点击网页任意位置激活声音"));
+        } else {
+            audio.pause();
+            ball.classList.remove('playing');
+            document.getElementById('js-play-btn').innerText = "▶️ 播放";
+        }
+    }
+    function changeSong(dir) {
+        currentIndex = (currentIndex + dir + playlist.length) % playlist.length;
+        loadSong(currentIndex).then(() => { if (ball.classList.contains('playing')) audio.play(); });
+    }
+    function toggleExpand() { ball.classList.toggle('expanded'); }
+    audio.onended = () => changeSong(1);
+    init();
+</script>
+</body>
+</html>
