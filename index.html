@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的私人音乐球-最终修正版</title>
+    <title>私人音乐球-全域通行版</title>
     <style>
         :root { --theme-color: #ff4444; --text-color: #ffffff; }
         body { background: #121212; margin: 0; height: 100vh; overflow: hidden; font-family: sans-serif; }
@@ -37,7 +37,7 @@
         <img id="js-cover" class="cover-img" src="" crossorigin="anonymous">
     </div>
     <div class="content-area">
-        <span class="song-title" id="js-title">加载中...</span>
+        <span class="song-title" id="js-title">音乐加载中...</span>
         <div class="controls">
             <button class="btn" id="js-play-btn" onclick="togglePlay()">▶️ 播放</button>
             <button class="btn" onclick="changeSong(1)">下首</button>
@@ -46,6 +46,7 @@
 </div>
 
 <script>
+    // --- 已更新你的最新 Cookie ---
     const MY_COOKIE = "00053591189B5A3746D2FA50ECC8725AE896D943737C451AFF46F353ADE7BBB88A985B846DC1316EBD16A3897B76AADD9DC813D90174450812BD2342129CAC958ACF4B35636B418285E0EE2E78398F2CB9639D2D96A0155C93AB34181D986C1AEEA8AB4965F65042DF38420AF432ABA05CCC96F867359BDB8757FA82BA3D00D4996F3702E93585FEBA30350DB63152B3795F180C6DF7F568226E96459EDEE91941E48042048FC8D68DADD5DE05CCD188B22F05036EC7199E257E979CC5710A2096BE6F068C389790041DAF9DB3176F7E760433D459269627DF38FDF2956369E2F9A428C400CDF47CD26B681D12D598D1DD3EA5E9EA48EBFAE46EE480999797B50ECBB014E53A391F32352102BE82FC93DF15878CE8A04BE2A7E3C946C459D30BC247AD21A92E99F978BB752A4E7B691EE39FFF3DFA81F0BB6692B849449F553709B2C2493060F2677D8CC349A027516BB8BA0223A37CBE81B5C91172F767DB9414EA526FC4473C5275B4D1FDC9124E3978B749EA142192E127D07AE485C5421D9204B2C173C14A403A752E1B3D8437E1D3ADA1FD6A03461EE4CCF39C53B92313E5";
     const API = "https://netease-cloud-music-api-backup-plum.vercel.app";
     const MY_ID = "247961016";
@@ -60,45 +61,63 @@
             const trackRes = await fetch(`${API}/playlist/track/all?id=${res.playlist[0].id}&limit=20`).then(r => r.json());
             playlist = trackRes.songs;
             if(playlist.length > 0) loadSong(0);
-        } catch (e) { document.getElementById('js-title').innerText = "地基唤醒中..."; }
+        } catch (e) { document.getElementById('js-title').innerText = "唤醒地基中..."; }
     }
 
     async function loadSong(index) {
         const song = playlist[index];
         document.getElementById('js-title').innerText = song.name;
-        // 修正 Canvas 跨域报错
         const cover = document.getElementById('js-cover');
+        // 强制转为 https 以防拦截
         cover.src = song.al.picUrl.replace("http://", "https://") + "?param=200y200";
 
+        // 三重获取逻辑：VIP接口 -> 备用接口 -> 直连接口
         const urls = [
             `${API}/song/url/v1?id=${song.id}&level=standard&cookie=${MY_COOKIE}`,
+            `${API}/song/url?id=${song.id}`,
             `https://music.163.com/song/media/outer/url?id=${song.id}.mp3`
         ];
 
         for (const url of urls) {
             try {
-                // 强制转为 HTTPS 解决 Mixed Content 报错
-                let finalUrl = url.includes("outer/url") ? url : await fetch(url).then(r => r.json()).then(d => d.data[0].url);
+                let finalUrl = "";
+                if (url.includes("outer/url")) {
+                    finalUrl = url;
+                } else {
+                    const d = await fetch(url).then(r => r.json());
+                    if (d.data && d.data[0].url && !d.data[0].url.includes("404")) {
+                        finalUrl = d.data[0].url;
+                    }
+                }
+
                 if (finalUrl) {
                     audio.src = finalUrl.replace("http://", "https://");
                     audio.load();
+                    console.log("音频已就绪:", audio.src);
                     break;
                 }
-            } catch (e) { console.log("重试..."); }
+            } catch (e) { console.log("尝试下一个源..."); }
         }
     }
 
     function togglePlay() {
+        // 强制激活浏览器音频引擎
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         if (ctx.state === 'suspended') ctx.resume();
         audio.muted = false;
+        audio.volume = 1.0;
         
+        if (!audio.src || audio.src.includes("404")) {
+            changeSong(1);
+            return;
+        }
+
         if (audio.paused) {
             audio.play().then(() => {
                 ball.classList.add('playing');
                 document.getElementById('js-play-btn').innerText = "⏸ 暂停";
             }).catch(e => {
-                alert("请手动允许‘不安全内容’！");
+                alert("声音被拦截！请点击地址栏左侧锁头，允许'不安全内容'和'自动播放'。");
             });
         } else {
             audio.pause();
@@ -114,6 +133,7 @@
 
     function toggleExpand() { ball.classList.toggle('expanded'); }
 
+    // 变色补丁：增加错误捕获
     document.getElementById('js-cover').onload = function() {
         try {
             const canvas = document.createElement('canvas');
@@ -122,7 +142,7 @@
             ctx.drawImage(this, 0, 0, 1, 1);
             const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
             document.documentElement.style.setProperty('--theme-color', `rgb(${r},${g},${b})`);
-        } catch (e) { console.warn("变色被拦截，已忽略"); }
+        } catch (e) { console.warn("封面变色受限"); }
     };
 
     audio.onended = () => changeSong(1);
