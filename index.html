@@ -3,41 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的私人音乐球-全线通关版</title>
+    <title>我的私人音乐球-最终修正版</title>
     <style>
         :root { --theme-color: #ff4444; --text-color: #ffffff; }
         body { background: #121212; margin: 0; height: 100vh; overflow: hidden; font-family: sans-serif; }
-
-        /* 悬浮球 */
         #music-ball {
-            position: fixed; bottom: 60px; right: 60px;
-            display: flex; align-items: center;
-            background: var(--theme-color);
-            backdrop-filter: blur(20px);
-            border-radius: 60px; padding: 6px;
-            box-shadow: 0 15px 45px rgba(0,0,0,0.6);
-            width: 54px; height: 54px; overflow: hidden;
-            border: 1px solid rgba(255,255,255,0.2);
-            transition: width 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: fixed; bottom: 60px; right: 60px; display: flex; align-items: center;
+            background: var(--theme-color); backdrop-filter: blur(20px); border-radius: 60px; padding: 6px;
+            box-shadow: 0 15px 45px rgba(0,0,0,0.6); width: 54px; height: 54px; overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.2); transition: width 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             z-index: 9999; cursor: pointer;
         }
         #music-ball.expanded { width: 320px; border-radius: 20px; }
-
-        .cover-wrapper { width: 54px; height: 54px; flex-shrink: 0; position: relative; }
+        .cover-wrapper { width: 54px; height: 54px; flex-shrink: 0; }
         .cover-img { 
             width: 100%; height: 100%; border-radius: 50%; object-fit: cover; 
             animation: rotateDisk 15s linear infinite; animation-play-state: paused;
             border: 2px solid rgba(255,255,255,0.3);
         }
         .playing .cover-img { animation-play-state: running; }
-
         .content-area { margin-left: 15px; opacity: 0; flex-grow: 1; transition: opacity 0.4s; color: var(--text-color); pointer-events: none; }
         .expanded .content-area { opacity: 1; pointer-events: auto; }
-
         .song-title { font-weight: bold; font-size: 15px; display: block; white-space: nowrap; width: 180px; overflow: hidden; text-overflow: ellipsis; }
         .controls { display: flex; gap: 15px; align-items: center; margin-top: 8px; }
         .btn { cursor: pointer; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 6px; font-size: 12px; border: none; color: inherit; }
-        
         @keyframes rotateDisk { from {transform: rotate(0deg)} to {transform: rotate(360deg)} }
     </style>
 </head>
@@ -45,10 +34,10 @@
 
 <div id="music-ball">
     <div class="cover-wrapper" onclick="toggleExpand()">
-        <img id="js-cover" class="cover-img" src="">
+        <img id="js-cover" class="cover-img" src="" crossorigin="anonymous">
     </div>
     <div class="content-area">
-        <span class="song-title" id="js-title">等待激活...</span>
+        <span class="song-title" id="js-title">加载中...</span>
         <div class="controls">
             <button class="btn" id="js-play-btn" onclick="togglePlay()">▶️ 播放</button>
             <button class="btn" onclick="changeSong(1)">下首</button>
@@ -57,7 +46,6 @@
 </div>
 
 <script>
-    // --- 配置区 ---
     const MY_COOKIE = "00053591189B5A3746D2FA50ECC8725AE896D943737C451AFF46F353ADE7BBB88A985B846DC1316EBD16A3897B76AADD9DC813D90174450812BD2342129CAC958ACF4B35636B418285E0EE2E78398F2CB9639D2D96A0155C93AB34181D986C1AEEA8AB4965F65042DF38420AF432ABA05CCC96F867359BDB8757FA82BA3D00D4996F3702E93585FEBA30350DB63152B3795F180C6DF7F568226E96459EDEE91941E48042048FC8D68DADD5DE05CCD188B22F05036EC7199E257E979CC5710A2096BE6F068C389790041DAF9DB3176F7E760433D459269627DF38FDF2956369E2F9A428C400CDF47CD26B681D12D598D1DD3EA5E9EA48EBFAE46EE480999797B50ECBB014E53A391F32352102BE82FC93DF15878CE8A04BE2A7E3C946C459D30BC247AD21A92E99F978BB752A4E7B691EE39FFF3DFA81F0BB6692B849449F553709B2C2493060F2677D8CC349A027516BB8BA0223A37CBE81B5C91172F767DB9414EA526FC4473C5275B4D1FDC9124E3978B749EA142192E127D07AE485C5421D9204B2C173C14A403A752E1B3D8437E1D3ADA1FD6A03461EE4CCF39C53B92313E5";
     const API = "https://netease-cloud-music-api-backup-plum.vercel.app";
     const MY_ID = "247961016";
@@ -72,61 +60,45 @@
             const trackRes = await fetch(`${API}/playlist/track/all?id=${res.playlist[0].id}&limit=20`).then(r => r.json());
             playlist = trackRes.songs;
             if(playlist.length > 0) loadSong(0);
-        } catch (e) {
-            document.getElementById('js-title').innerText = "地基唤醒中...";
-        }
+        } catch (e) { document.getElementById('js-title').innerText = "地基唤醒中..."; }
     }
 
     async function loadSong(index) {
         const song = playlist[index];
         document.getElementById('js-title').innerText = song.name;
-        document.getElementById('js-cover').src = song.al.picUrl + "?param=200y200";
-        
+        // 修正 Canvas 跨域报错
+        const cover = document.getElementById('js-cover');
+        cover.src = song.al.picUrl.replace("http://", "https://") + "?param=200y200";
+
         const urls = [
             `${API}/song/url/v1?id=${song.id}&level=standard&cookie=${MY_COOKIE}`,
-            `https://music.163.com/song/media/outer/url?id=${song.id}.mp3`,
-            `${API}/song/url?id=${song.id}`
+            `https://music.163.com/song/media/outer/url?id=${song.id}.mp3`
         ];
 
         for (const url of urls) {
             try {
-                if (url.includes('outer/url')) {
-                    audio.src = url;
+                // 强制转为 HTTPS 解决 Mixed Content 报错
+                let finalUrl = url.includes("outer/url") ? url : await fetch(url).then(r => r.json()).then(d => d.data[0].url);
+                if (finalUrl) {
+                    audio.src = finalUrl.replace("http://", "https://");
+                    audio.load();
                     break;
                 }
-                const res = await fetch(url + "&t=" + Date.now()).then(r => r.json());
-                if (res.data && res.data[0].url) {
-                    audio.src = res.data[0].url.replace("http://", "https://");
-                    break;
-                }
-            } catch (e) { console.log("尝试备用线路..."); }
+            } catch (e) { console.log("重试..."); }
         }
     }
 
     function togglePlay() {
-        // 核心补丁：强制激活 Web Audio 上下文
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (ctx.state === 'suspended') ctx.resume();
         audio.muted = false;
-        audio.volume = 1.0;
-
-        if (!audio.src || audio.src === window.location.href) {
-            loadSong(currentIndex).then(() => {
-                audio.play().then(() => {
-                    ball.classList.add('playing');
-                    document.getElementById('js-play-btn').innerText = "⏸ 暂停";
-                });
-            });
-            return;
-        }
-
+        
         if (audio.paused) {
             audio.play().then(() => {
                 ball.classList.add('playing');
                 document.getElementById('js-play-btn').innerText = "⏸ 暂停";
             }).catch(e => {
-                alert("播放失败！请点击地址栏锁头允许“媒体自动播放”和“不安全内容”");
+                alert("请手动允许‘不安全内容’！");
             });
         } else {
             audio.pause();
@@ -137,25 +109,24 @@
 
     function changeSong(dir) {
         currentIndex = (currentIndex + dir + playlist.length) % playlist.length;
-        loadSong(currentIndex).then(() => { 
-            if (ball.classList.contains('playing')) audio.play(); 
-        });
+        loadSong(currentIndex).then(() => { if (ball.classList.contains('playing')) audio.play(); });
     }
 
     function toggleExpand() { ball.classList.toggle('expanded'); }
-    
+
+    document.getElementById('js-cover').onload = function() {
+        try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 1; canvas.height = 1;
+            ctx.drawImage(this, 0, 0, 1, 1);
+            const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+            document.documentElement.style.setProperty('--theme-color', `rgb(${r},${g},${b})`);
+        } catch (e) { console.warn("变色被拦截，已忽略"); }
+    };
+
     audio.onended = () => changeSong(1);
     init();
-
-    // 自动变色逻辑
-    document.getElementById('js-cover').onload = function() {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 1; canvas.height = 1;
-        ctx.drawImage(this, 0, 0, 1, 1);
-        const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-        document.documentElement.style.setProperty('--theme-color', `rgb(${r},${g},${b})`);
-    };
 </script>
 </body>
 </html>
